@@ -85,27 +85,27 @@ class Attn_Net_Gated(nn.Module):
         self.in_features = in_features
         self.hidden_dim = hidden_dim
 
-        # 门控注意力分支 a：Linear + Tanh
+        # Gated attention branch a: Linear + Tanh
         self.attention_a = nn.Sequential(
             nn.Linear(in_features, hidden_dim),
             nn.Tanh(),
             nn.Dropout(dropout) if dropout > 0 else nn.Identity()
         )
 
-        # 门控注意力分支 b：Linear + Sigmoid
+        # Gated attention branch b: Linear + Sigmoid
         self.attention_b = nn.Sequential(
             nn.Linear(in_features, hidden_dim),
             nn.Sigmoid(),
             nn.Dropout(dropout) if dropout > 0 else nn.Identity()
         )
 
-        # 注意力分数输出层
+        # Attention score output layer
         self.attention_c = nn.Linear(hidden_dim, 1)
 
-        # 特征输出投影（保持与原始模型的输出维度一致）
+        # Feature projection to maintain output dimension consistency
         self.out_proj = nn.Linear(in_features, in_features)
 
-        # 初始化权重
+        # Weight initialization
         init.kaiming_normal_(self.attention_a[0].weight)
         init.kaiming_normal_(self.attention_b[0].weight)
         init.kaiming_normal_(self.attention_c.weight)
@@ -114,20 +114,20 @@ class Attn_Net_Gated(nn.Module):
     def forward(self, node_features: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         N, M = node_features.size()  # N: num_nodes, M: in_features
 
-        # 门控注意力计算
+        # Compute gated attention
         a = self.attention_a(node_features)  # N x hidden_dim
         b = self.attention_b(node_features)  # N x hidden_dim
         A = a * b  # N x hidden_dim
         attention_scores = self.attention_c(A)  # N x 1
 
-        # Softmax 归一化
+        # Softmax normalization
         attention_weights = F.softmax(attention_scores, dim=0)  # N x 1
 
-        # 计算加权特征
+        # Compute weighted features
         weighted_feature = torch.matmul(attention_weights.t(), node_features)  # 1 x M
         graph_feature = self.out_proj(weighted_feature)  # 1 x M
 
-        # 节点注意力分数
+        # Node attention scores
         node_attention_scores = attention_weights.squeeze(1)  # N
 
         return graph_feature, node_attention_scores
@@ -214,7 +214,7 @@ class SingleChannelMoudel(nn.Module):
         out = []
         hgnn_attention_scores = []
 
-        # 处理 HGNN 的输入
+        # Process HGNN inputs
         for idx in self.used_indices:
             x = X_H[idx]
             for layer in self.hgnn:
@@ -224,7 +224,7 @@ class SingleChannelMoudel(nn.Module):
             out.append(x_agg)
             hgnn_attention_scores.append(x_scores)
 
-        # 处理 GNN 的输入
+        # Process GNN inputs
         for idx in self.used_indices:
             y = X_G[idx]
             for layer in self.gnn:
@@ -233,12 +233,12 @@ class SingleChannelMoudel(nn.Module):
             y_agg = self.bn(y_agg)
             out.append(y_agg)
 
-        # 组合输出
+        # Concatenate outputs
         X = torch.cat(out, dim=1)
         X = self.bn2(X)
         X = self.final_layer(X)
 
-        # 超图注意力分数平均
+        # Average hypergraph attention scores
         if self.num_inputs > 0:
             total_hgnn_scores = torch.stack(hgnn_attention_scores, dim=0).mean(dim=0)
         else:
@@ -282,7 +282,7 @@ class CrossNet(nn.Module):
             x = self.bn(x)
             outputs.append(x)
 
-        for i in range(3):
+        for i in range 3:
             x = X_G[i]
             for layer in self.gnn:
                 x = layer(x, g[i])
@@ -329,7 +329,7 @@ class NewCrossNet(nn.Module):
             x = X_H[i]
             for layer in self.hgnn:
                 x = layer(x, hg[i])
-            x_agg = self.feature_aggregator(x)
+            x_agg, _ = self.feature_aggregator(x)
             x_agg = self.bn(x_agg)
             outputs.append(x_agg)
 
@@ -337,7 +337,7 @@ class NewCrossNet(nn.Module):
             x = X_G[i]
             for layer in self.gnn:
                 x = layer(x, g[i])
-            x_agg = self.feature_aggregator(x)
+            x_agg, _ = self.feature_aggregator(x)
             x_agg = self.bn(x_agg)
             outputs.append(x_agg)
 
@@ -363,30 +363,30 @@ if __name__ == "__main__":
     G3 = dhg.random.graph_Gnm(100, 10)
     G = [G1, G2, G3]
 
-    # 测试单输入
+    # Test single input
     model1 = SingleChannelMoudel(64, [64, 128, 512], 2, used_indices=[0])
     output1, hgnn_scores1 = model1(X_H, X_G, H, G)
-    print("单输入输出尺寸:", output1.size())
-    print("超图注意力分数尺寸（单输入）:", hgnn_scores1.size())
-    print("超图分数范围:", hgnn_scores1.min().item(), "到", hgnn_scores1.max().item())
+    print("Single-input output shape:", output1.size())
+    print("Hypergraph attention scores shape (single-input):", hgnn_scores1.size())
+    print("Hypergraph score range:", hgnn_scores1.min().item(), "to", hgnn_scores1.max().item())
 
-    # 测试双输入
+    # Test dual inputs
     model2 = SingleChannelMoudel(64, [64, 128, 512], 2, used_indices=[0, 2])
     output2, hgnn_scores2 = model2(X_H, X_G, H, G)
-    print("双输入输出尺寸:", output2.size())
-    print("超图注意力分数尺寸（双输入）:", hgnn_scores2.size())
-    print("超图分数范围:", hgnn_scores2.min().item(), "到", hgnn_scores2.max().item())
+    print("Dual-input output shape:", output2.size())
+    print("Hypergraph attention scores shape (dual-input):", hgnn_scores2.size())
+    print("Hypergraph score range:", hgnn_scores2.min().item(), "to", hgnn_scores2.max().item())
 
-    # 测试三输入
+    # Test triple inputs
     model3 = SingleChannelMoudel(64, [64, 128, 512], 2, used_indices=[0, 1, 2])
     output3, hgnn_scores3 = model3(X_H, X_G, H, G)
-    print("三输入输出尺寸:", output3.size())
-    print("超图注意力分数尺寸（三输入）:", hgnn_scores3.size())
-    print("超图分数范围:", hgnn_scores3.min().item(), "到", hgnn_scores3.max().item())
+    print("Triple-input output shape:", output3.size())
+    print("Hypergraph attention scores shape (triple-input):", hgnn_scores3.size())
+    print("Hypergraph score range:", hgnn_scores3.min().item(), "to", hgnn_scores3.max().item())
 
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters())
 
-    print("模型1参数量:", count_parameters(model1))
-    print("模型2参数量:", count_parameters(model2))
-    print("模型3参数量:", count_parameters(model3))
+    print("Model 1 parameter count:", count_parameters(model1))
+    print("Model 2 parameter count:", count_parameters(model2))
+    print("Model 3 parameter count:", count_parameters(model3))
